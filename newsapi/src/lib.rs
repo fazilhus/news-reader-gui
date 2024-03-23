@@ -39,13 +39,18 @@ impl NewsAPIResponse {
 
 #[derive(Deserialize, Debug)]
 pub struct Article {
-    title: String,
-    url: String,
+    pub title: String,
+    pub content: String,
+    pub url: String,
 }
 
 impl Article {
     pub fn title(&self) -> &str {
         &self.title
+    }
+
+    pub fn content(&self) -> &str {
+        &self.content
     }
 
     pub fn url(&self) -> &str {

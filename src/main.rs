@@ -1,34 +1,38 @@
 use eframe::{
-    egui::{self, Context, Label, Rect, Rgba, ScrollArea, TopBottomPanel, Ui}, glow::RGBA, Frame
+    egui::{self, Align, Layout, Context, Rect, Rgba, ScrollArea, TopBottomPanel, Ui},
+    Frame,
 };
-
-struct NewsCardData {
-    title: String,
-    content: String,
-    url: String,
-}
+use newsapi::Article;
 
 struct NewsReaderApp {
-    articles: Vec<NewsCardData>,
+    articles: Vec<Article>,
+    break_anywhere: bool,
+    max_rows_in_card_desc: usize,
+    overflow_char: Option<char>,
 }
 
 impl NewsReaderApp {
     pub fn new() -> NewsReaderApp { 
-        let iter = (0..20).map(|elem| NewsCardData {
+        let iter = (0..20).map(|elem| Article {
             title: format!("title{}", elem),
             content: format!("desc{}", elem),
             url: format!("https://example.com/{}", elem),
         });
         NewsReaderApp {
             articles: Vec::from_iter(iter),
+            //articles: NewsAPI::fetch_async(),
+            break_anywhere: false,
+            max_rows_in_card_desc: 6,
+            overflow_char: Some('‥'),
         }
     }
 
-    pub fn render_top_panel(&self, context: &Context) {
-        TopBottomPanel::top("top_panel").show(context, |ui| {
-            ui.add_space(10.);
-            
-        }); 
+    fn render_newscard(&self, context: &Context, card: &Article, ui: &mut Ui) {
+        ui.add_space(5.0);
+        ui.label(&card.title);
+        ui.label(&card.content);
+        ui.hyperlink_to("Read more", &card.url);
+        ui.separator();
     }
 }
 
@@ -42,13 +46,15 @@ impl eframe::App for NewsReaderApp {
 
         frame(context, |ui| {
             ScrollArea::vertical()
+                .max_height(context.available_rect().height() - 10.0)
                 .auto_shrink(false)
                 .scroll_bar_visibility(ScrollBarVisibility::VisibleWhenNeeded)
                 .show(ui, |ui| {
                 for card in &self.articles {
-                    newscard_ui(ui, &card);
+                    self.render_newscard(context, &card, ui);
                 }
             });
+            //render_footer(context, ui);
         });
     }
 }
@@ -73,21 +79,24 @@ fn frame(context: &Context, add_contents: impl FnOnce(&mut Ui)) {
             rect.max.y = rect.min.y + tbar_height;
             rect
         };
-        tbar_ui(ui, tbar_rect, "News Reader");
+        render_titlebar(ui, tbar_rect, "News Reader");
 
         let content_rect = {
             let mut rect = app_rect;
             rect.min.y = tbar_rect.max.y;
+            //rect.max.y -= 16.0;
             rect
         }
         .shrink(4.0);
         let mut content_ui = ui.child_ui(content_rect, *ui.layout());
         add_contents(&mut content_ui);
+
+        //render_footer(context, ui);
     });
 }
 
-fn tbar_ui(ui: &mut Ui, tbar_rect: Rect, title: &str) {
-    use egui::{vec2, Align, Align2, FontId, Id, Sense, ViewportCommand, Layout};
+fn render_titlebar(ui: &mut Ui, tbar_rect: Rect, title: &str) {
+    use egui::{vec2, Align2, FontId, Id, Sense, ViewportCommand};
 
     let painter = ui.painter();
     let tbar_response = ui.interact(tbar_rect, Id::new("title bar"), Sense::click());
@@ -121,11 +130,16 @@ fn tbar_ui(ui: &mut Ui, tbar_rect: Rect, title: &str) {
     }
 
     ui.allocate_ui_at_rect(tbar_rect, |ui| {
-        ui.with_layout(Layout::right_to_left(Align::RIGHT), |ui| {
-            ui.spacing_mut().item_spacing.x = 0.0;
-            ui.visuals_mut().button_frame = false;
-            ui.add_space(8.0);
-            minimize_maximize_close(ui);
+        ui.horizontal_centered(|ui| {
+            ui.with_layout(Layout::left_to_right(Align::Center), |ui| {
+                egui::widgets::global_dark_light_mode_switch(ui);
+            });
+            ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
+                ui.spacing_mut().item_spacing.x = 0.0;
+                ui.visuals_mut().button_frame = false;
+                ui.add_space(8.0);
+                minimize_maximize_close(ui);
+            });
         });
     });
 }
@@ -165,14 +179,6 @@ fn minimize_maximize_close(ui: &mut Ui) {
     if min_response.clicked() {
         ui.ctx().send_viewport_cmd(ViewportCommand::Minimized(true));
     }
-}
-
-fn newscard_ui(ui: &mut Ui, card: &NewsCardData) {
-    ui.add_space(5.0);
-    ui.label(&card.title);
-    ui.label(&card.content);
-    ui.hyperlink_to("Read more", &card.url);
-    ui.separator();
 }
 
 fn main() -> Result<(), eframe::Error> {
